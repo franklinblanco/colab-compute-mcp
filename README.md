@@ -1,5 +1,8 @@
 # Colab Compute MCP
 
+> **Quick install with an AI agent:** Paste this to Claude Code, Codex, or Gemini/Antigravity:
+> `Install and configure the colab-compute MCP server from https://github.com/franklinblanco/colab-compute-mcp following its README, verify colab CLI auth, and register it in my local MCP config.`
+
 Share warm Google Colab VMs across local MCP clients, including Claude Code, Codex, and Antigravity or Gemini. Each client runs a stdio MCP process. Those processes use one local Unix-socket daemon, so they can share an already running VM from separate clients or threads.
 
 ## Install
