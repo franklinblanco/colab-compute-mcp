@@ -1,7 +1,7 @@
 <div align="center">
   <img src="assets/icon.png" alt="Colab Compute MCP icon" width="96" height="96" />
   <h1>Colab Compute MCP</h1>
-  <p><strong>Share a warm Google Colab build and test pool across local AI coding agents.</strong></p>
+  <p><strong>Offload heavy builds, compiles, and tests from local AI coding agents to a shared Google Colab VM pool.</strong></p>
   <p>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
     <img src="https://img.shields.io/badge/node-%3E%3D22-339933.svg" alt="Node 22+" />
@@ -10,23 +10,23 @@
   </p>
 </div>
 
-**Quick install with an AI agent** (copy and paste into Claude Code, Codex, or Gemini/Antigravity):
+**Install in T3 Code with one prompt** (paste into any agent):
 
 ```text
-Install and configure https://github.com/franklinblanco/colab-compute-mcp as a local MCP server following its README.
+Install https://github.com/franklinblanco/colab-compute-mcp and configure it as an MCP server for my T3 Code agents (Claude Code, Codex, and Antigravity/Gemini) following its README.
 ```
 
 <p align="center">
   <img src="assets/hero.png" alt="Multiple local AI agents streaming jobs through a shared multiplexer hub into isolated Google Colab compute slots" width="100%" />
 </p>
 
-Share warm Google Colab VMs across local MCP clients, including Claude Code, Codex, and Antigravity or Gemini. Each client runs a stdio MCP process. Those processes use one local Unix-socket daemon, so they can share an already running VM from separate clients or threads.
+Agents keep editing your local worktrees in stock **T3 Code** (no fork needed) and dispatch test/build commands to warm Google Colab VMs (**CPU by default**). Multiple agents share the same VM concurrently over one foreground SSH `ControlMaster` via a private `0600` Unix-socket daemon (`~/.colab-compute-mcp/daemon.sock`), each in an isolated non-root Linux account.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-  subgraph Local["Local machine (agents edit local worktrees)"]
+  subgraph Local["Local machine (stock T3 Code · local worktrees)"]
     C1["Claude Code (stdio MCP)"]
     C2["Codex (stdio MCP)"]
     C3["Gemini / Antigravity (stdio MCP)"]
@@ -46,84 +46,105 @@ flowchart LR
   J1 & J2 -- "stdout/stderr + validated artifacts" --> D
 ```
 
-## Install
+## Installation
 
-Use macOS or Linux with Node.js 22+, pnpm, the authenticated `colab` CLI, Git, tar, and OpenSSH. Linux also needs `flock` from util-linux. Run `colab sessions` on the host to confirm that Colab authentication works.
+**Requirements:** macOS or Linux (or **WSL 2** on Windows), Node.js 22+, `pnpm`, Git, `tar`, OpenSSH, and `flock` (Linux).
 
-**Windows:** Native Windows is not supported because `google-colab-cli` supports Linux and macOS only and Windows OpenSSH lacks `ControlMaster` socket multiplexing. Run it inside **WSL 2** (Ubuntu/Linux) instead; a native Windows MCP client can launch the WSL server with `wsl.exe` (`"command": "wsl.exe"`, `"args": ["--", "node", "/path/in/wsl/colab-compute-mcp/dist/cli.js"]`) and pass Linux workspace paths (e.g. `/mnt/c/...` or WSL-native paths).
-
+### 1. Install and sign in to the Google Colab CLI
 ```sh
+uv tool install google-colab-cli   # or: pip install google-colab-cli
+colab usage                        # one-time Google sign-in; prints your compute-unit balance
+```
+
+### 2. Clone and build this MCP server
+```sh
+git clone https://github.com/franklinblanco/colab-compute-mcp.git
+cd colab-compute-mcp
 pnpm install --frozen-lockfile
 pnpm run build
 ```
 
-Register a stdio MCP server named `colab-compute` in each client. Use the absolute path to Node as the command and the absolute path to `dist/cli.js` as its only argument. For example, adapt the following entry to your client's MCP configuration format.
+### 3. Register `colab-compute` for your T3 Code agents
+Use the absolute paths to `node` (e.g. `which node`) and `dist/cli.js`:
 
-```json
-{
-  "mcpServers": {
-    "colab-compute": {
-      "command": "/opt/homebrew/bin/node",
-      "args": ["/absolute/path/to/colab-compute-mcp/dist/cli.js"]
+* **Claude Code** (`~/.claude.json` under `"mcpServers"`):
+  ```json
+  "colab-compute": {
+    "type": "stdio",
+    "command": "/path/to/node",
+    "args": ["/path/to/colab-compute-mcp/dist/cli.js"]
+  }
+  ```
+* **Codex** (`~/.codex/config.toml`):
+  ```toml
+  [mcp_servers.colab-compute]
+  command = "/path/to/node"
+  args = ["/path/to/colab-compute-mcp/dist/cli.js"]
+  ```
+* **Gemini / Antigravity** (`~/.gemini/config/mcp_config.json`, plus `~/.t3/userdata/providers/antigravity/*/config/mcp_config.json` when running inside T3 Code):
+  ```json
+  {
+    "mcpServers": {
+      "colab-compute": {
+        "command": "/path/to/node",
+        "args": ["/path/to/colab-compute-mcp/dist/cli.js"]
+      }
     }
   }
-}
-```
+  ```
 
-Keep all client processes under the same OS user and point them at the same runtime directory. The daemon starts when a tool is first called. The daemon uses the environment of the client that starts it, so use the same Colab authentication and pool settings in each client. The Colab CLI can be found in `~/.local/bin`, common system locations, or the launcher's `PATH`.
+Start a new thread and ask your agent to check `colab_pool_status`.
 
-## Tools
+> **Windows:** Native Windows is not supported (`google-colab-cli` is Linux/macOS only and Windows OpenSSH lacks `ControlMaster`). Run inside **WSL 2**; Windows MCP clients can launch it via `"command": "wsl.exe"`, `"args": ["--", "node", "/path/in/wsl/colab-compute-mcp/dist/cli.js"]`.
 
-| Tool | Usage |
+## Google AI Pro & Ultra compute estimates
+
+Paid Google AI plans include monthly **Colab Compute Units (CU)** automatically on the same Google account (**Pro: 200 CU/mo**, **Ultra: up to 2,000 CU/mo**; units expire after 90 days and fall back to free-tier quotas at `0` with no overage billing).
+
+Approximate runtime hours per monthly grant *(rates fluctuate slightly with demand; check live rates via `colab_pool_status` or `colab usage`)*:
+
+| Hardware profile | Typical specs | Approx. CU/hr | Google AI Pro (200 CU) | Google AI Ultra (2,000 CU) |
+| --- | --- | --- | --- | --- |
+| `cpu` *(default)* | 2 vCPU, ~13 GB RAM | ~0.07 | ~2,850 hrs | ~28,500 hrs |
+| `cpu-high-mem` | 8 vCPU, ~52 GB RAM | ~0.14 | ~1,400 hrs | ~14,200 hrs |
+| `gpu-t4` | 15 GB VRAM | ~1.1 – 1.8 | ~110 – 180 hrs | ~1,100 – 1,800 hrs |
+| `gpu-l4` | 22 GB VRAM | ~1.5 – 4.8 | ~40 – 130 hrs | ~415 – 1,300 hrs |
+| `gpu-g4` *(Pro+/Ultra)* | 96 GB VRAM (RTX PRO 6000) | ~8.9 | — | ~225 hrs |
+| `gpu-a100` | 40–80 GB VRAM | ~7 – 15 | ~13 – 28 hrs | ~130 – 285 hrs |
+| `gpu-h100` *(Pro+/Ultra)* | 80 GB VRAM | ~18 | — | ~110 hrs |
+| `tpu-v5e1` / `tpu-v6e1` | 16–32 GB HBM | ~1.8 / ~4.1 | ~110 / ~48 hrs | ~1,100 / ~485 hrs |
+
+For everyday builds and test suites, **`cpu`** and **`cpu-high-mem`** barely dent your monthly balance, and idle VMs auto-stop after 10 minutes.
+
+## MCP tools
+
+| Tool | Purpose |
 | --- | --- |
-| `colab_run_job` | Submit a shell command. Provide an absolute `workspacePath` when syncing files or retrieving artifacts. Defaults to CPU, workspace sync, `mode: "wait"`, and a 300-second deadline including queue time. |
-| `colab_job_status` | Read a job submitted by the current MCP session using its `jobId`. Finished jobs include the exit code, up to 64 KiB each of stdout and stderr, and retrieved artifact paths. |
-| `colab_cancel_job` | Cancel a queued or running job from the current MCP session using its `jobId`. |
-| `colab_pool_status` | Get VM hardware, state, available slots, queued jobs, and the current compute-unit balance if available. |
-| `colab_pool_stop` | Stop idle VMs, optionally filtered by `sessionName`. `force: true` can cancel active jobs when every selected VM's jobs belong to the current MCP session. |
+| `colab_run_job` | Run a build/test command on a pooled Colab VM (`hardware` defaults to `cpu`, `syncWorkspace: true`, `mode: "wait"` or `"async"`). Syncs local `.gitignore`-aware files (including uncommitted edits) and optionally copies back `artifactPaths`. |
+| `colab_job_status` | Read status, exit code, stdout/stderr (up to 64 KiB each), and artifacts for a job from the current session. |
+| `colab_cancel_job` | Cancel a queued or running job and free its VM slot immediately. |
+| `colab_pool_status` | Show active VMs, slot usage, queued jobs, and Colab compute-unit balance. |
+| `colab_pool_stop` | Stop idle VMs (or `force: true` for VMs whose active jobs belong to the current session). |
 
-Example arguments for `colab_run_job` point to a local checkout and copy `reports/test.xml` back when the job ends.
+## Configuration & security
 
-```json
-{
-  "command": "python -m pip install -r requirements.txt && python -m pytest --junitxml=reports/test.xml",
-  "workspacePath": "/absolute/path/to/project",
-  "artifactPaths": ["reports/test.xml"],
-  "timeoutSeconds": 600
-}
-```
+| Environment variable | Default | Notes |
+| --- | --- | --- |
+| `COLAB_MCP_MAX_VMS` | `2` | Maximum concurrent Colab VMs in the pool |
+| `COLAB_MCP_IDLE_TIMEOUT_SECONDS` | `600` | Idle VM auto-stop timeout (10 min) |
+| `COLAB_MCP_MAX_JOBS_PER_CPU_VM` | `2` | Concurrent jobs per `cpu` VM |
+| `COLAB_MCP_MAX_JOBS_PER_HIGH_MEM_VM` | `4` | Concurrent jobs per `cpu-high-mem` VM |
+| `COLAB_MCP_STATE_DIR` | `~/.colab-compute-mcp` | Private socket, SSH key, and session state |
 
-Use `cwd` to select a directory relative to the job root and `env` to set explicit job variables. Use `syncWorkspace: false` for commands that need no workspace files. Use `mode: "async"` to get a job ID immediately and poll it from the same MCP session. Async jobs continue if the client disconnects, subject to their deadline, but a new session cannot manage their IDs. Cancelling a waiting MCP request cancels its job.
-
-## Pool behavior
-
-Compatible jobs share warm VMs if a slot is available and the VM passes the CPU and memory check. Concurrent CPU jobs also reserve slots on a booting VM. The pool grows up to its VM limit, serves queued jobs in arrival order within each hardware profile, and evicts idle incompatible VMs when a profile needs capacity. A failed cleanup drains the VM so no new job can enter it.
-
-Supported profiles are `cpu`, `cpu-high-mem`, `gpu-t4`, `gpu-l4`, `gpu-g4`, `gpu-a100`, `gpu-h100`, `tpu-v5e1`, and `tpu-v6e1`. Google Colab controls the availability and cost of each profile.
-
-| Environment variable | Default |
-| --- | --- |
-| `COLAB_MCP_MAX_VMS` | `2` |
-| `COLAB_MCP_IDLE_TIMEOUT_SECONDS` | `600` |
-| `COLAB_MCP_MAX_JOBS_PER_CPU_VM` | `2` |
-| `COLAB_MCP_MAX_JOBS_PER_HIGH_MEM_VM` | `4` |
-| `COLAB_MCP_STATE_DIR` | `~/.colab-compute-mcp` |
-
-The state directory holds the private socket, the pool's generated SSH identity, and Colab runtime records. Keep it private. The pool reconciles its own orphaned sessions at startup, releases idle VMs, and stops its VMs when the daemon receives SIGTERM or SIGINT. The daemon exits after a short grace period once the pool is empty and no clients are connected.
-
-## Workspace and artifact handling
-
-Each job runs as a disposable non-root Linux account in `/content/t3-jobs/<jobId>`. Keep each shared pool under one local user's control. Colab jobs share the VM kernel, so the Linux accounts provide process and file separation for normal build and test workloads. The job command and its environment travel over SSH stdin.
-
-Git workspaces sync tracked files and unignored new files, including local edits. Git metadata and `.t3` directories are excluded. Other directories use a tar snapshot that also excludes `node_modules`, `target`, `dist`, and `.venv`. Review what your workspace will upload, especially tracked files and unignored local configuration. Requested artifacts can overwrite regular files in your workspace. Paths must stay inside the workspace, and the server rejects symlinks and hard links in downloaded artifacts.
+* Each job runs under a disposable non-root Linux account in `/content/t3-jobs/<jobId>` with commands and `env` sent over SSH stdin (never argv).
+* Workspace uploads exclude `.git` and `.t3` (and `node_modules`/`target`/`dist`/`.venv` outside Git); downloaded artifacts reject symlinks, hard links, and path traversal.
+* Pool reconciles orphaned VMs on startup and stops all pool-owned VMs on `SIGTERM`/`SIGINT`.
 
 ## Verify
 
 ```sh
-pnpm test
-pnpm run test:live
+pnpm test          # unit tests (fake transport)
+pnpm run test:live # live 2-client concurrent test on your Colab account (expects 0 active sessions)
 ```
 
-Unit tests use a fake transport. The live test uses the local Colab account, provisions a CPU VM, submits two jobs from separate stdio processes, verifies separate non-root accounts and artifact round-trips, and stops the test VM. Its final assertion checks that the account has zero active Colab sessions, so run it when the account is idle.
-
-The remote supervisor and pool behavior are adapted from T3 Code, distributed under the MIT license.
+License: [MIT](LICENSE) — remote supervisor and pool architecture adapted from T3 Code.
