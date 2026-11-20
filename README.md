@@ -12,6 +12,8 @@ Share warm Google Colab VMs across local MCP clients, including Claude Code, Cod
 
 Use macOS or Linux with Node.js 22+, pnpm, the authenticated `colab` CLI, Git, tar, and OpenSSH. Linux also needs `flock` from util-linux. Run `colab sessions` on the host to confirm that Colab authentication works.
 
+**Windows:** Native Windows is not supported because `google-colab-cli` supports Linux and macOS only and Windows OpenSSH lacks `ControlMaster` socket multiplexing. Run it inside **WSL 2** (Ubuntu/Linux) instead; a native Windows MCP client can launch the WSL server with `wsl.exe` (`"command": "wsl.exe"`, `"args": ["--", "node", "/path/in/wsl/colab-compute-mcp/dist/cli.js"]`) and pass Linux workspace paths (e.g. `/mnt/c/...` or WSL-native paths).
+
 ```sh
 pnpm install --frozen-lockfile
 pnpm run build
