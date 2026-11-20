@@ -1,0 +1,11 @@
+/node_modules/
+/dist/
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*credentials*.json
+.colab-compute-mcp/
+.DS_Store
