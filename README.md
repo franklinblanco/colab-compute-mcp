@@ -16,10 +16,6 @@
 Install https://github.com/franklinblanco/colab-compute-mcp and configure it as an MCP server for my T3 Code agents (Claude Code, Codex, and Antigravity/Gemini) following its README.
 ```
 
-<p align="center">
-  <img src="assets/hero.png" alt="Multiple local AI agents streaming jobs through a shared multiplexer hub into isolated Google Colab compute slots" width="100%" />
-</p>
-
 Agents keep editing your local worktrees in stock **T3 Code** (no fork needed) and dispatch test/build commands to warm Google Colab VMs (**CPU by default**). Multiple agents share the same VM concurrently over one foreground SSH `ControlMaster` via a private `0600` Unix-socket daemon (`~/.colab-compute-mcp/daemon.sock`), each in an isolated non-root Linux account.
 
 ## How it works
