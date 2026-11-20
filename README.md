@@ -1,4 +1,14 @@
-# Colab Compute MCP
+<div align="center">
+  <img src="assets/icon.png" alt="Colab Compute MCP icon" width="96" height="96" />
+  <h1>Colab Compute MCP</h1>
+  <p><strong>Share a warm Google Colab build and test pool across local AI coding agents.</strong></p>
+  <p>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
+    <img src="https://img.shields.io/badge/node-%3E%3D22-339933.svg" alt="Node 22+" />
+    <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20WSL%202-lightgrey.svg" alt="macOS, Linux, WSL 2" />
+    <img src="https://img.shields.io/badge/protocol-MCP-F59E0B.svg" alt="MCP" />
+  </p>
+</div>
 
 **Quick install with an AI agent** (copy and paste into Claude Code, Codex, or Gemini/Antigravity):
 
@@ -6,7 +16,35 @@
 Install and configure https://github.com/franklinblanco/colab-compute-mcp as a local MCP server following its README.
 ```
 
+<p align="center">
+  <img src="assets/hero.png" alt="Multiple local AI agents streaming jobs through a shared multiplexer hub into isolated Google Colab compute slots" width="100%" />
+</p>
+
 Share warm Google Colab VMs across local MCP clients, including Claude Code, Codex, and Antigravity or Gemini. Each client runs a stdio MCP process. Those processes use one local Unix-socket daemon, so they can share an already running VM from separate clients or threads.
+
+## How it works
+
+```mermaid
+flowchart LR
+  subgraph Local["Local machine (agents edit local worktrees)"]
+    C1["Claude Code (stdio MCP)"]
+    C2["Codex (stdio MCP)"]
+    C3["Gemini / Antigravity (stdio MCP)"]
+    D["Shared Pool Daemon (daemon.sock, 0600)"]
+    C1 & C2 & C3 --> D
+  end
+
+  subgraph Colab["Google Colab VM (CPU default · GPU/TPU optional)"]
+    M["1 Foreground SSH ControlMaster (zero HTTP 429)"]
+    J1["Job A (uid 1001 · isolated build/test)"]
+    J2["Job B (uid 1002 · isolated build/test)"]
+    M --> J1
+    M --> J2
+  end
+
+  D -- "tar workspace sync + stdin cmd/env" --> M
+  J1 & J2 -- "stdout/stderr + validated artifacts" --> D
+```
 
 ## Install
 
